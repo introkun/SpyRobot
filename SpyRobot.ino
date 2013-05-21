@@ -6,6 +6,7 @@
 #define RECV_PIN 4
 #define LEFT_MOTOR 5
 #define RIGHT_MOTOR 6
+#define LIGHT_SENSOR_PIN A0
 
 // Interrupts
 #define LEFT_OPTICAL_PIN_INTERRUPT 0
@@ -78,35 +79,20 @@ public:
 
   void MoveForward()
   {
-    if (m_operation != Operation::MoveForward)
-    {
-      m_leftMotorValue = m_highLeftMotorValue;
-      m_rightMotorValue = m_highRightMotorValue;
-    }
     m_operation = Operation::MoveForward;
-    SetupMotors(m_leftMotorValue, m_rightMotorValue);
+    SetupMotors(m_highLeftMotorValue, m_highRightMotorValue);
   }
 
   void Left()
   {
-    if (m_operation != Operation::TurnLeft)
-    {
-      m_leftMotorValue = 0;
-      m_rightMotorValue = m_highRightMotorValue;
-    }
     m_operation = Operation::TurnLeft;
-    SetupMotors(m_leftMotorValue, m_rightMotorValue);
+    SetupMotors(0, m_highRightMotorValue);
   }
 
   void Right()
   {
-    if (m_operation != Operation::TurnRight)
-    {
-      m_leftMotorValue = m_highLeftMotorValue;
-      m_rightMotorValue = 0;
-    }
     m_operation = Operation::TurnRight;
-    SetupMotors(m_leftMotorValue, m_rightMotorValue);
+    SetupMotors(m_highLeftMotorValue, 0);
   }
 
   void Operate()
@@ -123,6 +109,8 @@ public:
 
   void SetupWheel(Wheel::Enum wheel, Control::Enum control, int const value = WHEEL_SPEED_STEP)
   {
+    Serial.print("1. SetupWheel left "); Serial.print(m_highLeftMotorValue);
+    Serial.print(" right  "); Serial.println(m_highRightMotorValue);
     if (control == Control::SpeedUp)
     {
       switch (wheel)
@@ -150,8 +138,9 @@ public:
 
     m_highLeftMotorValue = constrain(m_highLeftMotorValue, 0, MAX_ANALOG_VALUE);
     m_highRightMotorValue = constrain(m_highRightMotorValue, 0, MAX_ANALOG_VALUE);
-    m_leftMotorValue = m_highLeftMotorValue;
-    m_rightMotorValue = m_highLeftMotorValue;
+
+    Serial.print("2. SetupWheel left "); Serial.print(m_highLeftMotorValue);
+    Serial.print(" right  "); Serial.println(m_highRightMotorValue);
   }
 
   void CheckFeedback(unsigned long const& now, int const leftOpticalCounter,
@@ -161,6 +150,8 @@ public:
     {
       Serial.print("opticalCounter left "); Serial.print(leftOpticalCounter);
       Serial.print(" right "); Serial.println(rightOpticalCounter);
+      Serial.print("pwm left "); Serial.print(m_highLeftMotorValue);
+      Serial.print(" right "); Serial.println(m_highRightMotorValue);
     }
 
     if (m_operation == Operation::MoveForward &&
@@ -169,8 +160,8 @@ public:
       if (leftOpticalCounter > rightOpticalCounter)
       {
         Serial.println("left wheel is to fast");
-        if (m_rightMotorValue > m_leftMotorValue &&
-          m_rightMotorValue < MAX_ANALOG_VALUE)
+        if (m_highRightMotorValue > m_highLeftMotorValue &&
+          m_highRightMotorValue < MAX_ANALOG_VALUE)
         {
           Serial.println("SpeedUp Right");
           SetupWheel(Wheel::Right, Control::SpeedUp);
@@ -184,8 +175,8 @@ public:
       else
       {
         Serial.println("Right wheel is to fast");
-        if (m_leftMotorValue > m_rightMotorValue &&
-          m_leftMotorValue < MAX_ANALOG_VALUE)
+        if (m_highLeftMotorValue > m_highRightMotorValue &&
+          m_highLeftMotorValue < MAX_ANALOG_VALUE)
         {
           Serial.println("SpeedUp Left");
           SetupWheel(Wheel::Left, Control::SpeedUp);
@@ -298,6 +289,14 @@ void loop() {
     knownCommand = false;
   }
   
+  int lightSendor= analogRead(LIGHT_SENSOR_PIN);
+  Serial.println(lightSendor);
+  if (lightSendor < 700)
+  {
+    robot.Right();
+    knownCommand = true;
+  }
+
   unsigned long now = millis();
   if (knownCommand)
   {
@@ -315,7 +314,6 @@ void loop() {
   if (now - opticalCheckTimer >= 1000)
   {
     robot.CheckFeedback(now, leftOpticalCounter, rightOpticalCounter);
-
     leftOpticalCounter = 0;
     rightOpticalCounter = 0;
     opticalCheckTimer = now;
